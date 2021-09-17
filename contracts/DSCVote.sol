@@ -14,6 +14,8 @@ contract DSCVote is Ownable, IDSCVote {
     uint8 public constant RESULT_SAME = 3;
 
     mapping(address => bool) public matesAllowed;
+    uint256 public minProposePeriod = 86400;
+    uint256 public maxProposePeriod = 604800;
     uint256 public proposeMateCount = 25;
 
     struct Proposal {
@@ -37,6 +39,14 @@ contract DSCVote is Ownable, IDSCVote {
 
     function disallowMates(address mates) onlyOwner external {
         matesAllowed[mates] = false;
+    }
+
+    function setMinProposePeriod(uint256 period) onlyOwner external {
+        minProposePeriod = period;
+    }
+
+    function setMaxProposePeriod(uint256 period) onlyOwner external {
+        maxProposePeriod = period;
     }
 
     function setProposeMateCount(uint256 count) onlyOwner external {
@@ -72,6 +82,7 @@ contract DSCVote is Ownable, IDSCVote {
 
     ) external returns (uint256 proposalId) {
         require(mateIds.length >= proposeMateCount);
+        require(minProposePeriod <= votePeriod && votePeriod <= maxProposePeriod);
 
         proposalId = proposals.length;
         proposals.push(Proposal({
