@@ -9,6 +9,7 @@ interface IDSCVote {
     event Execute(uint256 indexed proposalId);
 
     function VOTING() view external returns (uint8);
+    function CANCELED() view external returns (uint8);
     function RESULT_FOR() view external returns (uint8);
     function RESULT_AGAINST() view external returns (uint8);
     function RESULT_SAME() view external returns (uint8);
@@ -43,5 +44,5 @@ interface IDSCVote {
     function voteAgainst(uint256 proposalId, address mates, uint256[] calldata mateIds) external;
     function cancel(uint256 proposalId) external;
     function execute(uint256 proposalId) external;
-    function result(uint256 proposalId) external returns (uint8);
+    function result(uint256 proposalId) view external returns (uint8);
 }

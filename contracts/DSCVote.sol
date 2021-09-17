@@ -9,9 +9,10 @@ contract DSCVote is Ownable, IDSCVote {
     using SafeMath for uint256;
     
     uint8 public constant VOTING = 0;
-    uint8 public constant RESULT_FOR = 1;
-    uint8 public constant RESULT_AGAINST = 2;
-    uint8 public constant RESULT_SAME = 3;
+    uint8 public constant CANCELED = 1;
+    uint8 public constant RESULT_SAME = 2;
+    uint8 public constant RESULT_FOR = 3;
+    uint8 public constant RESULT_AGAINST = 4;
 
     mapping(address => bool) public matesAllowed;
     uint256 public minProposePeriod = 86400;
@@ -119,7 +120,7 @@ contract DSCVote is Ownable, IDSCVote {
 
     function voteAgainst(uint256 proposalId, address mates, uint256[] calldata mateIds) onlyVoting(proposalId) external {
         voteMate(proposalId, mates, mateIds);
-        forVotes[proposalId] = againstVotes[proposalId].add(mateIds.length);
+        againstVotes[proposalId] = againstVotes[proposalId].add(mateIds.length);
         emit VoteAgainst(proposalId, msg.sender, mates, mateIds);
     }
 
@@ -141,11 +142,13 @@ contract DSCVote is Ownable, IDSCVote {
         emit Execute(proposalId);
     }
 
-    function result(uint256 proposalId) public returns (uint8) {
+    function result(uint256 proposalId) view public returns (uint8) {
         Proposal memory proposal = proposals[proposalId];
         uint256 _for = forVotes[proposalId];
         uint256 _against = againstVotes[proposalId];
-        if (proposal.blockNumber.add(proposal.votePeriod) >= block.number) {
+        if (proposal.canceled == true) {
+            return CANCELED;
+        } else if (proposal.blockNumber.add(proposal.votePeriod) >= block.number) {
             return VOTING;
         } else if (_for == _against) {
             return RESULT_SAME;
