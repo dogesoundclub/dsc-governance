@@ -39,6 +39,7 @@ interface IDSCVote {
         bool executed
     );
 
+    function proposalCount() view external returns (uint256);
     function mateVoted(uint256 proposalId, address mates, uint256 id) view external returns (bool);
     function voteFor(uint256 proposalId, address mates, uint256[] calldata mateIds) external;
     function voteAgainst(uint256 proposalId, address mates, uint256[] calldata mateIds) external;

@@ -99,6 +99,10 @@ contract DSCVote is Ownable, IDSCVote {
 
         emit Propose(proposalId, msg.sender, _mates, mateIds);
     }
+    
+    function proposalCount() view external returns (uint256) {
+        return proposals.length;
+    }
 
     modifier onlyVoting(uint256 proposalId) {
         Proposal memory proposal = proposals[proposalId];
