@@ -353,6 +353,8 @@ interface IDSCVote {
     function mateVoted(uint256 proposalId, address mates, uint256 id) view external returns (bool);
     function voteFor(uint256 proposalId, address mates, uint256[] calldata mateIds) external;
     function voteAgainst(uint256 proposalId, address mates, uint256[] calldata mateIds) external;
+    function getBackMates(uint256 proposalId) external;
+    function matesBacked(uint256 proposalId) view external returns (bool);
     function cancel(uint256 proposalId) external;
     function execute(uint256 proposalId) external;
     function result(uint256 proposalId) view external returns (uint8);
@@ -379,13 +381,16 @@ contract DSCVote is Ownable, IDSCVote {
         string content;
         string note;
         uint256 blockNumber;
+        address proposeMates;
         uint256 votePeriod;
         bool canceled;
         bool executed;
     }
     Proposal[] public proposals;
+    mapping(uint256 => mapping(address => uint256[])) public proposeMates;
     mapping(uint256 => uint256) public forVotes;
     mapping(uint256 => uint256) public againstVotes;
+    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public mateVoted;
 
     function allowMates(address mates) onlyOwner external {
         matesAllowed[mates] = true;
@@ -406,8 +411,59 @@ contract DSCVote is Ownable, IDSCVote {
     function setProposeMateCount(uint256 count) onlyOwner external {
         proposeMateCount = count;
     }
-    
-    mapping(uint256 => mapping(address => mapping(uint256 => bool))) public mateVoted;
+
+    function propose(
+
+        string calldata title,
+        string calldata summary,
+        string calldata content,
+        string calldata note,
+        uint256 votePeriod,
+
+        address _mates,
+        uint256[] calldata mateIds
+
+    ) external returns (uint256 proposalId) {
+        require(matesAllowed[_mates] == true);
+        require(mateIds.length == proposeMateCount);
+        require(minProposePeriod <= votePeriod && votePeriod <= maxProposePeriod);
+
+        proposalId = proposals.length;
+        proposals.push(Proposal({
+            proposer: msg.sender,
+            title: title,
+            summary: summary,
+            content: content,
+            note: note,
+            blockNumber: block.number,
+            proposeMates: _mates,
+            votePeriod: votePeriod,
+            canceled: false,
+            executed: false
+        }));
+        
+        uint256[] storage proposed = proposeMates[proposalId][_mates];
+        IKIP17Enumerable mates = IKIP17Enumerable(_mates);
+
+        for (uint256 index = 0; index < proposeMateCount; index = index.add(1)) {
+            uint256 id = mateIds[index];
+            require(mates.ownerOf(id) == msg.sender);
+            mates.transferFrom(msg.sender, address(this), id);
+            proposed.push(id);
+        }
+
+        emit Propose(proposalId, msg.sender, _mates, mateIds);
+    }
+
+    modifier onlyVoting(uint256 proposalId) {
+        Proposal memory proposal = proposals[proposalId];
+        require(
+            proposal.canceled != true &&
+            proposal.executed != true &&
+            proposal.blockNumber.add(proposal.votePeriod) >= block.number
+        );
+        _;
+    }
     
     function voteMate(uint256 proposalId, address _mates, uint256[] memory mateIds) internal {
         require(matesAllowed[_mates] == true);
@@ -421,48 +477,6 @@ contract DSCVote is Ownable, IDSCVote {
             require(mates.ownerOf(id) == msg.sender && voted[id] != true);
             voted[id] = true;
         }
-    }
-
-    function propose(
-
-        string calldata title,
-        string calldata summary,
-        string calldata content,
-        string calldata note,
-        uint256 votePeriod,
-
-        address mates,
-        uint256[] calldata mateIds
-
-    ) external returns (uint256 proposalId) {
-        require(mateIds.length >= proposeMateCount);
-        require(minProposePeriod <= votePeriod && votePeriod <= maxProposePeriod);
-
-        proposalId = proposals.length;
-        proposals.push(Proposal({
-            proposer: msg.sender,
-            title: title,
-            summary: summary,
-            content: content,
-            note: note,
-            blockNumber: block.number,
-            votePeriod: votePeriod,
-            canceled: false,
-            executed: false
-        }));
-
-        voteMate(proposalId, mates, mateIds);
-        emit Propose(proposalId, msg.sender, mates, mateIds);
-    }
-
-    modifier onlyVoting(uint256 proposalId) {
-        Proposal memory proposal = proposals[proposalId];
-        require(
-            proposal.canceled != true &&
-            proposal.executed != true &&
-            proposal.blockNumber.add(proposal.votePeriod) >= block.number
-        );
-        _;
     }
 
     function voteFor(uint256 proposalId, address mates, uint256[] calldata mateIds) onlyVoting(proposalId) external {
@@ -480,6 +494,26 @@ contract DSCVote is Ownable, IDSCVote {
     modifier onlyProposer(uint256 proposalId) {
         require(proposals[proposalId].proposer == msg.sender);
         _;
+    }
+
+    function getBackMates(uint256 proposalId) onlyProposer(proposalId) external {
+        require(result(proposalId) != VOTING);
+
+        Proposal memory proposal = proposals[proposalId];
+        uint256[] memory proposed = proposeMates[proposalId][proposal.proposeMates];
+        IKIP17Enumerable mates = IKIP17Enumerable(proposal.proposeMates);
+        uint256 length = proposed.length;
+
+        for (uint256 index = 0; index < length; index = index.add(1)) {
+            mates.transferFrom(address(this), proposal.proposer, proposed[index]);
+        }
+
+        delete proposeMates[proposalId][proposal.proposeMates];
+    }
+    
+    function matesBacked(uint256 proposalId) view external returns (bool) {
+        Proposal memory proposal = proposals[proposalId];
+        return proposeMates[proposalId][proposal.proposeMates].length == 0;
     }
 
     function cancel(uint256 proposalId) onlyProposer(proposalId) external {
