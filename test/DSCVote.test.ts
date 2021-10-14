@@ -56,7 +56,7 @@ describe("DSCVote", () => {
             expect(await vote.RESULT_AGAINST()).to.be.equal(4)
         })
 
-        it.only("propose", async () => {
+        it("propose", async () => {
 
             for (let i = 0; i < 25; i += 1) {
                 await mates1.mint(admin.address, i);
